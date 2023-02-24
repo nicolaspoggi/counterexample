@@ -1,93 +1,105 @@
-import { useState } from 'react';
+import { useState } from 'react'
 import { ethers } from 'ethers'
-import Greeter from '../artifacts/contracts/Greeter.sol/Greeter.json'
+import CounterAbi from '../CounterAbi.json'
 import { Biconomy } from "@biconomy/mexa";
+import styles from "../styles/Home.module.css"
 
-const greeterAddress = "0x671C54C8a0b354eD7e0B0424114D4B1FB7512AcC"
+
+const counterAddress = "0xdD1d6640788F4277a85a42CC76C1200bd1166978";
 
 function App() {
-  const [greeting, setGreetingValue] = useState()
+  const [count, setCount] = useState(0);
+  const [address, setAddress] = useState("");
+  const [message, setMessage] = useState("");
 
-  async function requestAccounts() {
-    return await window.ethereum.request({ method: 'eth_requestAccounts' });
-  }
-
-  async function fetchGreeting() {
+  async function connectAndGetCount() {
     if (typeof window.ethereum !== 'undefined') {
       const provider = new ethers.providers.Web3Provider(window.ethereum)
-      const contract = new ethers.Contract(greeterAddress, Greeter.abi, provider)
-      try {
-        const data = await contract.greet()
-        console.log('data: ', data)
-      } catch (err) {
-        console.log("Error: ", err)
+      const contract =  new ethers.Contract(counterAddress, CounterAbi, provider)
+      await provider.send("eth_requestAccounts", []);
+      const signer = provider.getSigner();
+      const walletAddress = await signer.getAddress();
+      setAddress(walletAddress);
+      try{
+        const data = await contract.currentCount();
+        setCount(data.toNumber())
+      } catch(error) {
+        console.log({error})
       }
-    }    
+    }
   }
 
-  async function setGreeting() {
-    if (!greeting) return
+  async function increment() {
+    if (!address) return
     if (typeof window.ethereum !== 'undefined') {
-      const accounts = await requestAccounts()
       const biconomy = new Biconomy(
         window.ethereum,
         {
           apiKey: process.env.NEXT_PUBLIC_BICONOMY_API_KEY,
           debug: true,
-          contractAddresses: [greeterAddress]
+          contractAddresses: [counterAddress]
         }
       );
       const provider = await biconomy.provider;
 
       const contractInstance = new ethers.Contract(
-        greeterAddress,
-        Greeter.abi,
+        counterAddress,
+        CounterAbi,
         biconomy.ethersProvider
       );
       await biconomy.init();
 
-      const { data } = await contractInstance.populateTransaction.setGreeting(greeting)
+      const { data } = await contractInstance.populateTransaction.incrementCount()
 
       let txParams = {
         data: data,
-        to: greeterAddress,
-        from: accounts[0],
+        to: counterAddress,
+        from: address,
         signatureType: "EIP712_SIGN",
       };
 
-      await provider.send("eth_sendTransaction", [txParams]);
+      try {
+        await provider.send("eth_sendTransaction", [txParams]);
+        biconomy.on("txHashGenerated", (data) => {
+          setMessage(`Transaction is processing with hash ${data.hash}`)
+        });
+        biconomy.on("txMined", (data) => {
+          setCount(count + 1)
+          setMessage(`Transaction has completed with hash ${data.hash}`)
+        });
+      } catch (error) {
+        console.log(error)
+      }
     }
-  }
+    }
 
   return (
-    <div className="App">
-      <div style={containerStyle}>
-        <button style={buttonStyle} onClick={fetchGreeting}>Fetch Greeting</button>
-        <button style={buttonStyle} onClick={setGreeting}>Set Greeting</button>
-        <input style={inputStyle} onChange={e => setGreetingValue(e.target.value)} placeholder="Set greeting" />
+    <div className={styles.container}>
+      <h1>Gasless Counter</h1>
+      <div className={styles.card}>
+        <p>{message}</p>
+        {
+          address ? (
+          <button onClick={() => increment()}>
+          Count is {count}
+        </button>
+        ):(      
+        <button onClick={() => connectAndGetCount()}>
+          Connect
+        </button>
+        )
+        }
+        <p>
+          All counts are recorded on the Polygon Blockchain
+        </p>
       </div>
+      <p className={styles.docs}>
+      <a href="https://docs.biconomy.io/" target="_blank" rel="noreferrer">
+      Click here to learn more about Biconomy and building Gasless Transactions
+        </a>
+      </p>
     </div>
-  );
+  )
 }
 
-const containerStyle = {
-  width: '900px',
-  margin: '0 auto',
-  display: 'flex',
-  flexDirection: 'column',
-  paddingTop: 100
-}
-
-const inputStyle = {
-  width: '100%',
-  padding: '8px'
-
-}
-
-const buttonStyle = {
-  width: '100%',
-  marginBottom: 15,
-  height: '30px',
-}
-
-export default App;
+export default App
