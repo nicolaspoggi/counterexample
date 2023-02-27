@@ -94,8 +94,8 @@ function App() {
         </p>
       </div>
       <p className={styles.docs}>
-      <a href="https://docs.biconomy.io/" target="_blank" rel="noreferrer">
-      Click here to learn more about Biconomy and building Gasless Transactions
+      <a href="https://docs.fleek.xyz/" target="_blank" rel="noreferrer">
+      Built with Biconomy for Gasless Transactions & Deployed to IPFS with Fleek ⚡
         </a>
       </p>
     </div>
